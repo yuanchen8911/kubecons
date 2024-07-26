@@ -7,7 +7,8 @@
 	./democtl.sh "$<" "$@" \
 		--shell zsh \
 		--env WORK_DIR \
-		--env ROOT_DIR
+		--env ROOT_DIR \
+		--env PATH
 
 .PRECIOUS: %.svg
 %.svg: %.cast
