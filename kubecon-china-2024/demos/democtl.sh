@@ -17,26 +17,23 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-SIMULATE=false
 COLS=86
 ROWS=24
 SVG_TERM=""
 SVG_PROFILE=""
-
-function color() {
-  local color="${1}"
-  local text="${2}"
-  echo -e "\033[1;${color}m${text}\033[0m"
-}
+SIM_ENV=()
+PLAY_SHELL=bash
+INSTALL=()
 
 export PLAY_PS1="$ "
 
 CACHE_DIR=${TMPDIR:-/tmp}/democtl
-SELFPATH="$(realpath "$0")"
 ARGS=()
 
-export PYTHONPATH="${CACHE_DIR}/py_modules"
-export PATH="${PYTHONPATH}/bin:${CACHE_DIR}/node_modules/.bin:${PATH}:${PATH}"
+export ASCIINEMA_PATH="${CACHE_DIR}/asciinema"
+export PLAYPTY_PATH="${CACHE_DIR}/playpty"
+export PYTHONPATH="${ASCIINEMA_PATH}:${PLAYPTY_PATH}"
+export PATH="${ASCIINEMA_PATH}/bin:${PLAYPTY_PATH}/bin:${CACHE_DIR}/node_modules/.bin:${PATH}"
 
 function usage() {
   echo "Usage: ${0} <input> <output> [--help] [options...]"
@@ -48,6 +45,8 @@ function usage() {
   echo "  --ps1=${PLAY_PS1} ps1 of the recording"
   echo "  --term=${SVG_TERM} terminal type"
   echo "  --profile=${SVG_PROFILE} terminal profile"
+  echo "  --env=${SIM_ENV[*]} environment variables will be passed to the simulation script"
+  echo "  --shell=${PLAY_SHELL} shell of the recording"
 }
 
 # args parses the arguments.
@@ -57,10 +56,6 @@ function args() {
   while [[ $# -gt 0 ]]; do
     arg="$1"
     case "${arg}" in
-    --internal-simulate)
-      SIMULATE="true"
-      shift
-      ;;
     --cols | --cols=*)
       [[ "${arg#*=}" != "${arg}" ]] && COLS="${arg#*=}" || { COLS="${2}" && shift; } || :
       shift
@@ -79,6 +74,18 @@ function args() {
       ;;
     --profile | --profile=*)
       [[ "${arg#*=}" != "${arg}" ]] && SVG_PROFILE="${arg#*=}" || { SVG_PROFILE="${2}" && shift; } || :
+      shift
+      ;;
+    --env | --env=*)
+      [[ "${arg#*=}" != "${arg}" ]] && SIM_ENV+=("${arg#*=}") || { SIM_ENV+=("${2}") && shift; } || :
+      shift
+      ;;
+    --shell | --shell=*)
+      [[ "${arg#*=}" != "${arg}" ]] && PLAY_SHELL="${arg#*=}" || { PLAY_SHELL="${2}" && shift; } || :
+      shift
+      ;;
+    --install | --install=*)
+      [[ "${arg#*=}" != "${arg}" ]] && INSTALL+=("${arg#*=}") || { INSTALL+=("${2}") && shift; } || :
       shift
       ;;
     --help)
@@ -104,12 +111,24 @@ function command_exist() {
   type "${command}" >/dev/null 2>&1
 }
 
+# install_playpty installs playpty.
+function install_playpty() {
+  if command_exist playpty; then
+    return 0
+  elif command_exist pip3; then
+    pip3 install playpty==0.4.1 --target "${PLAYPTY_PATH}" >&2
+  else
+    echo "playpty is not installed" >&2
+    return 1
+  fi
+}
+
 # install_asciinema installs asciinema.
 function install_asciinema() {
   if command_exist asciinema; then
     return 0
   elif command_exist pip3; then
-    pip3 install asciinema --target "${PYTHONPATH}" >&2
+    pip3 install asciinema==2.4.0 --target "${ASCIINEMA_PATH}" >&2
   else
     echo "asciinema is not installed" >&2
     return 1
@@ -121,7 +140,7 @@ function install_svg_term_cli() {
   if command_exist svg-term; then
     return 0
   elif command_exist npm; then
-    npm install --save-dev svg-term-cli --prefix "${CACHE_DIR}" >&2
+    npm install --save-dev svg-term-cli@2.1.1 --prefix "${CACHE_DIR}" >&2
   else
     echo "svg-term is not installed" >&2
     return 1
@@ -133,7 +152,7 @@ function install_svg_to_video() {
   if command_exist svg-to-video; then
     return 0
   elif command_exist npm; then
-    npm install --save-dev https://github.com/wzshiming/svg-to-video --prefix "${CACHE_DIR}" >&2
+    npm install --save-dev @wzshiming/svg-to-video@0.2.1 --prefix "${CACHE_DIR}" >&2
   else
     echo "svg-to-video is not installed" >&2
     return 1
@@ -157,7 +176,16 @@ function ext_replace() {
 function demo2cast() {
   local input="${1}"
   local output="${2}"
+  if [[ ! -f "${input}" ]]; then
+    echo "${input} does not exist"
+    return 1
+  fi
   echo "Recording ${input} to ${output}" >&2
+
+  local command="playpty ${input} --ps1='${PLAY_PS1}' --cols=${COLS} --rows=${ROWS} --shell=${PLAY_SHELL}"
+  if [ "${#SIM_ENV[@]}" -ne 0 ]; then
+    command+=" --env ${SIM_ENV[*]}"
+  fi
 
   asciinema rec \
     "${output}" \
@@ -165,13 +193,17 @@ function demo2cast() {
     --cols "${COLS}" \
     --rows "${ROWS}" \
     --env "" \
-    --command "bash ${SELFPATH} ${input} --internal-simulate --ps1='${PLAY_PS1}'"
+    --command "${command}"
 }
 
 # cast2svg converts the input cast file to the output svg file.
 function cast2svg() {
   local input="${1}"
   local output="${2}"
+  if [[ ! -f "${input}" ]]; then
+    echo "${input} does not exist"
+    return 1
+  fi
   local args=()
   echo "Converting ${input} to ${output}" >&2
 
@@ -193,6 +225,10 @@ function cast2svg() {
 function svg2video() {
   local input="${1}"
   local output="${2}"
+  if [[ ! -f "${input}" ]]; then
+    echo "${input} does not exist"
+    return 1
+  fi
   echo "Converting ${input} to ${output}" >&2
 
   svg-to-video \
@@ -208,7 +244,10 @@ function svg2video() {
 function convert() {
   local input="${1}"
   local output="${2}"
-
+  if [[ ! -f "${input}" ]]; then
+    echo "${input} does not exist"
+    return 1
+  fi
   local castfile
   local viedofile
 
@@ -222,6 +261,7 @@ function convert() {
     case "${inext}" in
     demo)
       install_asciinema
+      install_playpty
 
       demo2cast "${input}" "${output}"
       return 0
@@ -242,6 +282,7 @@ function convert() {
       ;;
     demo)
       install_asciinema
+      install_playpty
       install_svg_term_cli
 
       castfile=$(ext_replace "${output}" "cast")
@@ -274,6 +315,7 @@ function convert() {
       ;;
     demo)
       install_asciinema
+      install_playpty
       install_svg_term_cli
       install_svg_to_video
 
@@ -297,75 +339,22 @@ function convert() {
   esac
 }
 
-# br prints a new line.
-# this function is used to simulate typing.
-function br() {
-  echo
-}
-
-# ps1 prints the ps1 with a delay.
-# this function is used to simulate typing.
-function ps1() {
-  local delay="${1}"
-  echo -e -n "${PLAY_PS1}"
-  if [[ "${delay}" != "" ]]; then
-    sleep "${delay}"
-  fi
-}
-
-# type_message prints a message to stdout at a human hand speed.
-# this function is used to simulate typing.
-function type_message() {
-  local message="$1"
-  local delay="${2:-0.02}"
-  local entry_delay="${3:-0.1}"
-  for ((i = 0; i < ${#message}; i++)); do
-    echo -n "${message:$i:1}"
-    sleep "${delay}"
+function install() {
+  for pkg in "${INSTALL[@]}"; do
+    "install_${pkg}"
   done
-  sleep "${entry_delay}"
-  br
-}
-
-# type_and_exec_command prints a command to stdout and executes it.
-# this function is used to simulate typing.
-function type_and_exec_command() {
-  local command="$*"
-  type_message "${command}" 0.01 0.5
-  eval "${command}"
-}
-
-# play_file plays a file line by line.
-# this function is used to simulate typing.
-function play_file() {
-  local file="$1"
-  while read -r line; do
-    if [[ "${line}" =~ ^# ]]; then
-      ps1 0.5
-      type_message "${line}"
-    elif [[ "${line}" == "" ]]; then
-      ps1 2
-      br
-    else
-      ps1 1
-      type_and_exec_command "${line}"
-    fi
-  done <"${file}"
 }
 
 function main() {
   if [[ "${#ARGS[*]}" -lt 1 ]]; then
+    if [ "${#INSTALL[@]}" -ne 0 ]; then
+      exit 0
+    fi
     usage
     exit 1
   fi
 
   INPUT_FILE="${ARGS[0]}"
-
-  # Only for asciinema recording command.
-  if [[ "${SIMULATE}" == "true" ]]; then
-    play_file "${INPUT_FILE}"
-    exit 0
-  fi
 
   if [[ "${#ARGS[*]}" -gt 1 ]]; then
     OUTPUT_FILE="${ARGS[1]}"
@@ -377,5 +366,8 @@ function main() {
   convert "${INPUT_FILE}" "${OUTPUT_FILE}"
 }
 
-args "$@"
-main
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  args "$@"
+  install
+  main
+fi
