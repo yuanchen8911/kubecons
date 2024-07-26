@@ -1,0 +1,47 @@
+@typing-interval 0.001
+# Create cluster with kwokctl
+kwokctl create cluster --enable-metrics-server \
+    --config ${WORK_DIR}/metrics-usage.yaml \
+    --config ${WORK_DIR}/exec.yaml \
+    --config ${WORK_DIR}/logs.yaml
+
+@typing-interval 0.03
+kwokctl scale node --replicas 3
+kwokctl scale pod --replicas 10
+
+kubectl get pod -o wide
+kubectl get node -o wide
+
+# Get logs of the container that simulated by kwok
+kubectl logs pod-000000
+
+# To enter the container that simulated by kwok
+kubectl exec -it pod-000000 -- ps -ef
+
+kubectl exec -it pod-000009 -- ps -ef
+
+# Skip for waiting metric collect (about 45s)
+@sleep 45
+
+# Get usage of the nodes and the pods that simulated by kwok
+kubectl top pod
+kubectl top node
+
+@sleep 5
+# Modify the usage of the pod 
+kubectl patch pod pod-000000 --type=json \
+    -p='[{"op": "add", "path": "/metadata/annotations", "value": { "kwok.x-k8s.io/usage-cpu": "1000m", "kwok.x-k8s.io/usage-memory": "1000Mi" } }]'
+
+# Skip for waiting metric collect (about 15s)
+@sleep 15
+
+kubectl top node
+kubectl top pod
+
+@sleep 5
+
+kwokctl delete cluster
+
+# Thank you!
+@sleep 5
+clear
