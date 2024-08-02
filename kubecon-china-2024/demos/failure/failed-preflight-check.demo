@@ -1,45 +1,40 @@
 @typing-interval 0.005
-# Demo: inject fault to initContainer to simulate a preflight check error in an existing minikube cluster
+# Demo: inject fault to a ML job's initContainer to simulate a preflight check error
 @typing-interval 0.03
-kubectl config use-context minikube
 kubectl get nodes
-@sleep 2
-
+@sleep 1
 @typing-interval 0.03
-
+# Show kwok controller
 kubectl get pod -n kube-system | grep kwok
-kubectl get stages
-@sleep 5
-clear
-# Add a virtual GPU node
+@sleep 2
+@clear
+# Create a fake GPU node
 grep allocatable ${WORK_DIR}/virtual-gpu-node.yaml -A 15
-@sleep 5
-clear
+@sleep 3
+@clear
 kubectl apply -f ${WORK_DIR}/virtual-gpu-node.yaml
 kubectl get nodes
 kubectl describe node virtual-gpu-node | grep Allocatable -A 15
-@sleep 5
-clear 
-# Create a pod and inject an error to initContainer to simulate a preflight check error
+@sleep 3
+@clear 
+# Create a pod and inject an error to its preflight NCLL check initContainer
 grep failed ${WORK_DIR}/failed-pod.yaml
-@sleep 15 
-clear
+@sleep 10 
+@clear
 kubectl apply -f ${WORK_DIR}/failed-pod.yaml
-
-@sleep 5
+kubectl get pods -o wide
+@sleep 3
 kubectl get pod -o wide
-
 kubectl describe pod failed-pod | grep "Init Container" -A 15
 @sleep 5 
+@clear
 
 @typing-interval 0.02
 # Clean up
 kubectl delete -f ${WORK_DIR}/failed-pod.yaml
 kubectl delete -f ${WORK_DIR}/virtual-gpu-node.yaml
-
 kubectl get nodes
 kubectl get pods
 
 # Thank you!
-@sleep 2
-clear
+@sleep 1
