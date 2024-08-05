@@ -7,27 +7,27 @@ kubectl get nodes
 # Show kwok controller
 kubectl get pod -n kube-system | grep kwok
 @sleep 2
-@clear
+clear
 # Create a fake GPU node
 grep allocatable ${WORK_DIR}/virtual-gpu-node.yaml -A 15
 @sleep 3
-@clear
+clear
 kubectl apply -f ${WORK_DIR}/virtual-gpu-node.yaml
 kubectl get nodes
 kubectl describe node virtual-gpu-node | grep Allocatable -A 15
 @sleep 3
-@clear 
+clear 
 # Create a pod and inject an error to its preflight NCLL check initContainer
 grep failed ${WORK_DIR}/failed-pod.yaml
 @sleep 10 
-@clear
+clear
 kubectl apply -f ${WORK_DIR}/failed-pod.yaml
 kubectl get pods -o wide
-@sleep 3
+@sleep 4
 kubectl get pod -o wide
 kubectl describe pod failed-pod | grep "Init Container" -A 15
 @sleep 5 
-@clear
+clear
 
 @typing-interval 0.02
 # Clean up
