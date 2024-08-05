@@ -17,7 +17,7 @@ kubectl get nodes
 kubectl describe node virtual-gpu-node | grep Allocatable -A 15
 @sleep 3
 clear 
-# Create a pod and inject an error to its preflight NCLL check initContainer
+# Create a pod and inject an error to its preflight NCCL check initContainer
 grep failed ${WORK_DIR}/failed-pod.yaml
 @sleep 10 
 clear
@@ -35,6 +35,7 @@ kubectl delete -f ${WORK_DIR}/failed-pod.yaml
 kubectl delete -f ${WORK_DIR}/virtual-gpu-node.yaml
 kubectl get nodes
 kubectl get pods
+clear
 
 # Thank you!
-@sleep 1
+@sleep 2
