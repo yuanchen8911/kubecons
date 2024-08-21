@@ -7,8 +7,8 @@ kwokctl create cluster --enable-metrics-server \
 @sleep 1
 
 @typing-interval 0.03
-kwokctl scale node --replicas 3
-@sleep 5
+kwokctl scale node --replicas 2
+@sleep 2
 kwokctl scale pod --replicas 5
 @sleep 5
 
@@ -23,11 +23,12 @@ kubectl logs pod-000000
 
 # To enter the container that simulated by kwok
 kubectl exec -it pod-000000 -- ps -ef
-@sleep 1
+@sleep 2
 kubectl exec -it pod-000004 -- ps -ef
+@sleep 5
 
 # Wait for metrics server to collect
-@sleep 10
+@sleep 5
 
 # Get usage of the nodes and the pods that simulated by kwok
 kubectl top node
@@ -43,7 +44,7 @@ kubectl patch pod pod-000000 --type=json \
 @sleep 10
 
 kubectl top node
-@sleep 5
+@sleep 3
 kubectl top pod
 @sleep 5
 
