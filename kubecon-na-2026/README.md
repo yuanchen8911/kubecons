@@ -3,6 +3,8 @@
 **One Recipe, Five Clouds, One Query: Portable GPU Configuration with a Queryable Audit Layer**
 Christopher Haar (Upbound) & Yuan Chen (NVIDIA) · Salt Lake City, November 2026
 
+**Slides:** [PDF](aicr-kubecon-na-2026-one-recipe-five-clouds-one-query.pdf) (32 slides; on slides 15 and 25, click to play the demo)
+
 Recorded demos of [AI Cluster Runtime (AICR)](https://github.com/NVIDIA/aicr) on a real EKS GB300 cluster.
 Click a file to play it in the browser.
 
